@@ -89,6 +89,8 @@ api.get('/resumen', (req, res) => {
     bot: estadoDelBot(),
     ultimaReconciliacion: getMeta(db, 'ultima_reconciliacion'),
     ultimaRevisionSitios: getMeta(db, 'ultima_revision_sitios'),
+    // Para el aviso con sonido: el panel compara este id con el último que vio.
+    ultimoReporteId: db.prepare('SELECT MAX(id) id FROM reportes').get().id ?? 0,
     sitios: SITIOS.map(({ clave, nombre }) => ({ clave, nombre })),
     ahora: new Date().toISOString(),
   })
@@ -102,6 +104,16 @@ api.get('/lista', (req, res) => {
 })
 
 api.get('/a-bajar', (req, res) => res.json({ codigos: codigosABajar(db) }))
+
+// Reportes que llegaron después de `desde` (id), para avisar con sonido qué códigos entraron.
+// Las consultas manuales del panel no cuentan: no llegaron por WhatsApp.
+api.get('/reportes-nuevos', (req, res) => {
+  const desde = Math.max(0, Number.parseInt(req.query.desde, 10) || 0)
+  const filas = db
+    .prepare(`SELECT id, codigo, de FROM reportes WHERE id > ? AND msg_id NOT LIKE 'panel-%' ORDER BY id LIMIT 50`)
+    .all(desde)
+  res.json({ reportes: filas.map((f) => ({ ...f })) })
+})
 api.get('/publicados', (req, res) => res.json({ codigos: codigosPublicados(db) }))
 
 const csv = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`

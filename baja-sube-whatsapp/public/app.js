@@ -120,6 +120,104 @@ function cambiarTema() {
 for (const b of document.querySelectorAll('.btn-tema')) b.addEventListener('click', cambiarTema)
 pintarBotonesTema()
 
+// ---------- aviso con sonido cuando entra un código nuevo ----------
+// Preferencia por navegador (localStorage), activado por defecto. El sonido se genera con Web Audio
+// (no hay archivo de audio). Los navegadores no dejan sonar nada hasta que la persona toca la página
+// una vez: por eso el contexto de audio se "despierta" con el primer clic o tecla.
+let sonidoActivo = true
+try { sonidoActivo = localStorage.getItem('bajas-sonido') !== 'no' } catch {}
+let audio = null
+let ultimoVisto = null // id del último reporte ya avisado; null = todavía no se cargó (no sonar al abrir)
+let pendientesTitulo = 0
+const TITULO = document.title
+
+function contextoAudio() {
+  if (!audio) {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return null
+    audio = new Ctx()
+  }
+  return audio
+}
+
+/** Campanita de dos notas, corta y suave (~0,5 s). */
+function sonar() {
+  const ctx = contextoAudio()
+  if (!ctx || ctx.state !== 'running') return false
+  const t = ctx.currentTime
+  for (const [frecuencia, inicio] of [[880, 0], [1318.5, 0.16]]) {
+    const osc = ctx.createOscillator()
+    const vol = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.value = frecuencia
+    vol.gain.setValueAtTime(0.0001, t + inicio)
+    vol.gain.exponentialRampToValueAtTime(0.25, t + inicio + 0.02)
+    vol.gain.exponentialRampToValueAtTime(0.0001, t + inicio + 0.35)
+    osc.connect(vol).connect(ctx.destination)
+    osc.start(t + inicio)
+    osc.stop(t + inicio + 0.4)
+  }
+  return true
+}
+
+function despertarAudio() {
+  const ctx = contextoAudio()
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {})
+}
+document.addEventListener('pointerdown', despertarAudio)
+document.addEventListener('keydown', despertarAudio)
+
+function pintarBotonSonido() {
+  const b = $('btn-sonido')
+  b.replaceChildren(icono(sonidoActivo ? 'bell' : 'bell-off'))
+  b.title = sonidoActivo ? 'Sonido activado al entrar un código nuevo. Tocá para silenciar.' : 'Sonido silenciado. Tocá para activarlo.'
+  b.setAttribute('aria-label', b.title)
+  b.setAttribute('aria-pressed', String(sonidoActivo))
+}
+
+$('btn-sonido').addEventListener('click', () => {
+  sonidoActivo = !sonidoActivo
+  try { localStorage.setItem('bajas-sonido', sonidoActivo ? 'si' : 'no') } catch {}
+  pintarBotonSonido()
+  if (sonidoActivo) {
+    despertarAudio()
+    setTimeout(sonar, 60) // muestra cómo suena
+    aviso('Sonido activado: vas a escuchar un aviso cuando entre un código nuevo')
+  } else aviso('Sonido silenciado')
+})
+pintarBotonSonido()
+
+// Al volver a la pestaña se limpia el contador del título.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    pendientesTitulo = 0
+    document.title = TITULO
+  }
+})
+
+async function avisarSiHayNuevos(ultimoId) {
+  if (ultimoId == null) return
+  if (ultimoVisto === null || ultimoId < ultimoVisto) {
+    ultimoVisto = ultimoId // primera carga (o base reiniciada): no avisar lo que ya estaba
+    return
+  }
+  if (ultimoId === ultimoVisto) return
+  const { reportes } = await api(`/reportes-nuevos?desde=${ultimoVisto}`).then((r) => r.json())
+  ultimoVisto = ultimoId
+  if (!reportes.length) return // solo consultas manuales: no se avisa
+  const codigos = [...new Set(reportes.map((r) => r.codigo))]
+  const quien = reportes.at(-1).de
+  const texto = codigos.length === 1
+    ? `Nuevo código: ${codigos[0]}${quien ? ` (de ${quien})` : ''}`
+    : `${codigos.length} códigos nuevos: ${codigos.slice(0, 4).join(', ')}${codigos.length > 4 ? '…' : ''}`
+  if (sonidoActivo && !sonar()) aviso(`${texto}. Tocá la página para activar el sonido.`)
+  else aviso(texto)
+  if (document.hidden) {
+    pendientesTitulo += codigos.length
+    document.title = `(${pendientesTitulo}) ${TITULO}`
+  }
+}
+
 // ---------- vistas ----------
 function mostrarLogin() {
   clearInterval(temporizador)
@@ -134,7 +232,8 @@ async function mostrarApp() {
   $('vista-app').hidden = false
   await refrescar()
   clearInterval(temporizador)
-  temporizador = setInterval(() => !document.hidden && refrescar().catch(() => {}), 30_000)
+  // Cada 15 s, también con la pestaña en segundo plano: si no, el aviso de código nuevo llegaría tarde.
+  temporizador = setInterval(() => refrescar().catch(() => {}), 15_000)
 }
 
 // ---------- datos ----------
@@ -148,8 +247,9 @@ async function refrescar() {
   refrescarVinculacion().catch(() => {})
 }
 
-function pintarResumen({ conteos, bot, ultimaReconciliacion, ultimaRevisionSitios, sitios: s }) {
+function pintarResumen({ conteos, bot, ultimaReconciliacion, ultimaRevisionSitios, sitios: s, ultimoReporteId }) {
   sitios = s || []
+  avisarSiHayNuevos(ultimoReporteId).catch(() => {})
   $('num-a-bajar').textContent = conteos.publicados
   $('btn-copiar').disabled = conteos.publicados === 0
   $('n-publicados').textContent = conteos.publicados

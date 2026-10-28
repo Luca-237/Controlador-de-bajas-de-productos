@@ -128,3 +128,14 @@ Y borrar el registro A en Ferozo. Los datos quedan en `/root/bajas-cindy/data` h
 **Cambiar el número de WhatsApp:** desde el teléfono vinculado, *Dispositivos vinculados* → cerrar la sesión del bot. El bot borra la sesión vieja solo y el panel muestra un QR nuevo.
 
 **No correr en el servidor** `npm run seed-local`: carga datos de prueba y escribe un `estado.json` falso.
+
+---
+
+## Mientras tanto: correrlo en una PC con Windows
+
+Hasta que se pueda instalar en el Cloud Server, el bot puede quedar funcionando en una PC:
+
+- **`Bajas Cindy - Iniciar.bat`** (en el Escritorio): arranca el bot y el panel en segundo plano, sin ventanas, y abre el panel en el navegador. Si ya estaban corriendo, solo abre el panel. Llama a `scripts/windows-iniciar.ps1`. Los registros quedan en `logs/bot.log` y `logs/panel.log`.
+- **`Bajas Cindy - Detener.bat`**: los apaga. Llama a `scripts/windows-detener.ps1` y solo cierra los procesos de esta carpeta.
+
+Siguen andando aunque se cierre la ventana, pero se cortan si la PC se apaga, se suspende o se cierra la sesión de Windows. Conviene desactivar la suspensión estando enchufada.
