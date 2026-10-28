@@ -1,0 +1,32 @@
+{
+  "name": "baja-sube-whatsapp",
+  "version": "0.1.0",
+  "description": "Bot de bajas de e-commerce de Cindy Mayorista: escucha el grupo de WhatsApp 'Código que no hay más', lista los códigos y avisa en qué páginas (web de Cindy, catálogo y tienda de Travel Blue) siguen publicados. Panel web con historial de bajas.",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "panel": "node src/panel/server.js",
+    "set-password": "node scripts/set-password.js",
+    "replay": "node scripts/replay-logs.js",
+    "seed-local": "node scripts/seed-local.js",
+    "revisar-sitios": "node scripts/revisar-sitios.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs && pm2 save",
+    "pm2:restart": "pm2 restart bajas-cindy-bot bajas-cindy-panel",
+    "pm2:logs": "pm2 logs bajas-cindy-bot --lines 50 --nostream",
+    "empaquetar": "node scripts/empaquetar.mjs"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.24",
+    "dotenv": "^17.4.2",
+    "express": "^5.3.0",
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.4"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}
